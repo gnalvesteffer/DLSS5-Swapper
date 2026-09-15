@@ -177,6 +177,24 @@ Compatibility varies by renderer and game. Xenia HUD correction remains experime
 
 ## Before installing
 
+### Linux / Steam Proton (experimental)
+
+The Linux build installs the same Windows ReShade and DLSS5-Feeder payload into
+a **Windows game launched through Steam Proton**. It is intended for NVIDIA RTX
+systems and is especially useful for the **DLSS5-Feeder** route in games that
+do not have native DLSS.
+
+1. In Steam, force a Proton version and launch the game once so Steam creates
+   its compatibility prefix.
+2. Start DLSS 5 Swapper, choose the game and select **DLSS5-Feeder (No DLSS /
+   Incompatible DLSS)**.
+3. Use a DirectX renderer where the game offers one. The Linux installer does
+   not support the Feeder Vulkan route yet.
+
+Valve Proton and custom tools such as GE-Proton, Proton-Cachy and Proton-EM are
+detected from Steam's compatibility-tools folders. Native Linux games cannot
+load this Windows DLL payload. Do not install into anti-cheat-protected games.
+
 - **Anti-cheat:** red warning and optional confirmation, not a blanket block. Injection can cause crashes or account bans; the app never bypasses anti-cheat.
 - **Requirements:** Feeder needs Visual C++ runtimes (x64, plus x86 for 32-bit games). Some components download on first use.
 - **Compatibility is not guaranteed.** Keep backups; existing mods may conflict. Not every reported game crash is fixed.
