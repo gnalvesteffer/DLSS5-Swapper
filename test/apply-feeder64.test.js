@@ -73,3 +73,48 @@ test('64-bit Feeder route installs the synthetic contract and Lumenite in proces
   assert.equal(fs.existsSync(path.join(gameDir, 'dlss5-feed.addon64')), false);
   assert.equal(fs.existsSync(path.join(gameDir, 'reshade-shaders')), false);
 });
+
+test('64-bit Feeder uses the user-supplied DFC consumer without bundling it', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'dlss5-feed64-dfc-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const gameDir = path.join(root, 'Game');
+  const payload = path.join(root, 'Payload');
+  const dfcRoot = path.join(root, 'Official DFC');
+  const exePath = put(path.join(gameDir, 'game.exe'));
+  const setup = put(path.join(payload, 'ReShade_Setup_6.8.0_Addon.exe'));
+  const shaderRoot = path.join(payload, 'feeder', 'reshade-shaders');
+  for (const rel of [
+    ['Shaders', 'DLSS5_Feed.fx'], ['Shaders', 'vort_Motion.fx'],
+    ['Shaders', 'ReShade.fxh'], ['Shaders', 'ReShadeUI.fxh'],
+    ['Shaders', 'Includes', 'vort_Defs.fxh'], ['Textures', 'vort_BlueNoise.png']
+  ]) put(path.join(shaderRoot, ...rel));
+  for (const name of ['deep-fried-chicken.addon64', 'deep-fried-chicken-nvngx.dll', 'deep-fried-chicken.cfg']) {
+    put(path.join(dfcRoot, name), `official ${name}`);
+  }
+  const source = {
+    hasNeuralRendering: true,
+    payload: [
+      { name: 'nvngx_dlssnr.dll', path: put(path.join(payload, 'nvngx_dlssnr.dll')), version: '310.8.0' },
+      { name: 'nvngx_dlss.dll', path: put(path.join(payload, 'nvngx_dlss.dll')), version: '310.8.0' }
+    ],
+    feeder: {
+      ok64: true, addon64: put(path.join(payload, 'feeder', 'dlss5-feed.addon64')),
+      feedShader: path.join(shaderRoot, 'Shaders', 'DLSS5_Feed.fx'), shaderRoot,
+      hostAddon: put(path.join(payload, 'feeder', 'host64', 'renodx-dlss5.addon64'))
+    }
+  };
+  const setupRunner = async (_setup, args) => {
+    put(path.join(path.dirname(args[0]), 'dxgi.dll'), 'ReShade Searching for add-ons');
+    return { code: 0, output: '' };
+  };
+  const manifest = await applySwap({
+    gameDir, exePath, api: 'dxgi', bitness: 64, route: 'feeder', source,
+    reshadeSetup: setup, setupRunner, installReShade: true, dfcRoot
+  });
+  assert.equal(manifest.feeder.consumer, 'dfc');
+  assert.equal(fs.existsSync(path.join(gameDir, 'deep-fried-chicken.addon64')), true);
+  assert.equal(fs.existsSync(path.join(gameDir, 'deep-fried-chicken-nvngx.dll')), true);
+  assert.equal(fs.existsSync(path.join(gameDir, 'renodx-dlss5.addon64')), false);
+  await restore(gameDir);
+  assert.equal(fs.existsSync(path.join(gameDir, 'deep-fried-chicken.addon64')), false);
+});

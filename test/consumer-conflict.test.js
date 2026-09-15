@@ -55,7 +55,7 @@ test('multipass comes only from its own route: the hidden per-game switch is gon
   assert.doesNotMatch(main, /multipass-state|set-multipass|multipassGames/);
   assert.doesNotMatch(preload, /multipassState|setMultipass/);
   assert.doesNotMatch(apply, /config\.multipass/);
-  assert.match(apply, /const consumerName = 'renodx-dlss5\.addon64';/);
+  assert.match(apply, /const consumerName = useDfc \? 'deep-fried-chicken\.addon64' : 'renodx-dlss5\.addon64';/);
 });
 
 // A real install and a real restore, with only the game scanner stubbed.

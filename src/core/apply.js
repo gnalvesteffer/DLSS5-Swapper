@@ -408,7 +408,7 @@ async function installReShadeAt(options) {
 async function applyFeeder(config, log) {
   const {
     gameDir, exePath, api, source, reshadeSetup, setupRunner,
-    bitness: requestedBitness, vulkanLayerTarget, registryRunner, emulator
+    bitness: requestedBitness, vulkanLayerTarget, registryRunner, emulator, dfcRoot
   } = config;
   const bitness = requestedBitness || pe.getBitness(exePath);
   const exeDir = path.dirname(exePath);
@@ -516,7 +516,10 @@ async function applyFeeder(config, log) {
       );
     }
   }
-  manifest.feeder = { version: source.feeder.version || 'unknown', provider };
+  const dfcFiles = ['deep-fried-chicken.addon64', 'deep-fried-chicken-nvngx.dll', 'deep-fried-chicken.cfg'];
+  const useDfc = bitness === 64 && typeof dfcRoot === 'string' &&
+    dfcFiles.every(name => fs.existsSync(path.join(dfcRoot, name)));
+  manifest.feeder = { version: source.feeder.version || 'unknown', provider, consumer: useDfc ? 'dfc' : 'renodx' };
   const verifier = path.join(path.dirname(source.feeder.feedShader), '..', '..', 'Verify-DLSS5Feeder.ps1');
   if (fs.existsSync(verifier)) await copyTracked(manifest, gameDir, verifier, path.join(exeDir, 'Verify-DLSS5Feeder.ps1'), { kind: 'diagnostics' });
   const installedShaders = [
@@ -532,7 +535,7 @@ async function applyFeeder(config, log) {
   const gameIniPath = path.join(exeDir, 'ReShade.ini');
   let gameIni = feederConfig.configureGameReShade(feederConfig.readText(gameIniPath), provider);
   const xenia = emulator && emulator.key === 'xenia';
-  if (bitness === 64) gameIni = feederConfig.configureConsumer(gameIni, { xenia });
+  if (bitness === 64 && !useDfc) gameIni = feederConfig.configureConsumer(gameIni, { xenia });
   let preset = feederConfig.presetPath(exeDir, gameIni);
   const presetRel = path.relative(gameDir, preset);
   if (presetRel.startsWith('..') || path.isAbsolute(presetRel)) {
@@ -552,12 +555,10 @@ async function applyFeeder(config, log) {
     feederConfig.configureFeed(feederConfig.readText(cfgPath)), { kind: 'config' }
   );
 
-  // The Feeder's consumer is always the ordinary one: the Feeder recognises
-  // renodx-dlss5*, and the multipass build is a route of its own (#251). A
-  // per-game switch could once swap it in here, unseen and unreachable from the
-  // app - which is how a game ended up with a multipass nobody had chosen.
-  const consumerName = 'renodx-dlss5.addon64';
-  const consumerFile = source.feeder.hostAddon;
+  // DFC comes from the person's own official extraction and is never shipped
+  // with this app. On every other route retain the bundled RenoDX consumer.
+  const consumerName = useDfc ? 'deep-fried-chicken.addon64' : 'renodx-dlss5.addon64';
+  const consumerFile = useDfc ? path.join(dfcRoot, consumerName) : source.feeder.hostAddon;
 
   const hostDir = bitness === 32 ? path.join(exeDir, 'host64') : exeDir;
   await setAsideRivalConsumers(manifest, gameDir, hostDir, consumerName, log);
@@ -569,6 +570,10 @@ async function applyFeeder(config, log) {
     [dlss.path, path.join(hostDir, dlss.name), 'runtime']
   ] : [
     [consumerFile, path.join(exeDir, consumerName), 'addon'],
+    ...(useDfc ? [
+      [path.join(dfcRoot, 'deep-fried-chicken-nvngx.dll'), path.join(exeDir, 'deep-fried-chicken-nvngx.dll'), 'bridge'],
+      [path.join(dfcRoot, 'deep-fried-chicken.cfg'), path.join(exeDir, 'deep-fried-chicken.cfg'), 'config']
+    ] : []),
     [neural.path, path.join(exeDir, neural.name), 'runtime'],
     [dlss.path, path.join(exeDir, dlss.name), 'runtime']
   ];

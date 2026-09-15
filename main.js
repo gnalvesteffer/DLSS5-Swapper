@@ -42,6 +42,37 @@ const { HistoryStore, knownFolders, fromManifests } = require('./src/core/histor
 const gameMenu = require('./src/core/game-menu');
 const { CommunityClient, ADMIN_TOKEN_PATTERN } = require('./src/community-client');
 const { AdminVault } = require('./src/admin-vault');
+// DFC is deliberately never bundled: its licence allows a person to install
+// their official download but forbids us to redistribute it. A Linux user who
+// has extracted an official release in Downloads can still select it as their
+// local Feeder consumer. Only the three exact consumer files are accepted.
+function localDfcRoot() {
+  const downloads = path.join(os.homedir(), 'Downloads');
+  let entries = [];
+  try { entries = fs.readdirSync(downloads, { withFileTypes: true }); } catch { return null; }
+  const required = ['deep-fried-chicken.addon64', 'deep-fried-chicken-nvngx.dll', 'deep-fried-chicken.cfg'];
+  const candidates = entries.filter(entry => entry.isDirectory() && /^Deep-Fried-Chicken-/i.test(entry.name))
+    .map(entry => path.join(downloads, entry.name))
+    .filter(root => {
+      if (!required.every(name => fs.existsSync(path.join(root, name)))) return false;
+      // The release ships a checksum list beside its binaries. Require it and
+      // validate the three files we consume: a folder merely named DFC must
+      // never be sufficient to load a third-party DLL into a game.
+      try {
+        const sums = fs.readFileSync(path.join(root, 'SHA256SUMS.txt'), 'utf8');
+        const expected = new Map([...sums.matchAll(/^([a-f0-9]{64})\\s+(.+)$/gmi)]
+          .map(([, hash, name]) => [name.trim(), hash.toLowerCase()]));
+        return required.every(name => {
+          const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex');
+          return expected.get(name) === hash;
+        });
+      } catch { return false; }
+    });
+  candidates.sort((a, b) => {
+    try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch { return 0; }
+  });
+  return candidates[0] || null;
+}
 let historyStore;
 const history = () => historyStore || (historyStore = new HistoryStore(path.join(app.getPath('userData'), 'history.jsonl')));
 let communityClient;
@@ -1821,6 +1852,10 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi) =>
       antiCheatAcknowledged,
       emulator: target.emulator,
       source: p.source,
+      // This is a reference to the person's own official DFC extraction, not
+      // an app asset. It is only considered on Linux/Proton where the current
+      // RenoDX v4.7 consumer has failed on this machine.
+      dfcRoot: process.platform === 'linux' ? localDfcRoot() : null,
       optiRoot,
       companions,
       reshadeSetup: p.reshadeSetup,
