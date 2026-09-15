@@ -1,4 +1,4 @@
-// Feeder 0.15.1 documents a live cfg reload every 60 delivered frames. This
+// Feeder 1.16.0-beta.2 documents a live cfg reload every 60 delivered frames. This
 // adapter edits that file, not private memory. Readback here is FILE readback,
 // not confirmation of GPU execution. RenoDX NR remains a separate connection.
 #pragma once
@@ -66,17 +66,17 @@ struct controls {
         if(!module){checked=nullptr;valid=false;reason="Feeder is not loaded";return;}
         if(module!=checked){
             checked=module;
-            // DLSS5-Feeder 0.15.1. Held in step with
+            // DLSS5-Feeder 1.16.0-beta.2. Held in step with
             // src/core/feeder-release.js by a check in npm run payload: this pin
             // went stale across an earlier upgrade and silently killed every
             // Feeder slider in the panel.
-            const unsigned char hash[]={0x3a,0xfc,0x8e,0xfb,0x5f,0x51,0x6e,0x94,0xa2,0xa0,0x68,0xb2,0xe9,0x0e,0xae,0xd3,0x60,0xd1,0xe3,0x0c,0xa2,0xc2,0x9b,0x62,0x3e,0x0c,0xfa,0xdc,0x1f,0x05,0xd5,0x0d};
-            valid=nr_probe::hash_matches(module,297472,hash);
+            const unsigned char hash[]={0x09,0x94,0xfc,0x75,0x3a,0xf8,0x66,0xf6,0x1c,0xdb,0xef,0xc9,0x15,0x71,0x1d,0x73,0xbc,0xeb,0xec,0x2f,0x7c,0x7a,0x44,0x04,0xe3,0xeb,0xf7,0xf1,0x99,0x21,0x5e,0xfa};
+            valid=nr_probe::hash_matches(module,308224,hash);
             wchar_t file[32768]={};DWORD n=GetModuleFileNameW(module,file,32768);
             valid=valid&&n>0&&n<32768;path=file;
             if(valid)path=path.substr(0,path.find_last_of(L"\\/")+1)+L"dlss5-feed.cfg";
         }
-        if(!valid){reason="Unsupported Feeder binary (this build drives x64 v0.15.1)";return;}
+        if(!valid){reason="Unsupported Feeder binary (this build drives x64 v1.16.0-beta.2)";return;}
         std::string text;if(!read(path,text)){reason="Feeder config unavailable; let Feeder initialize";return;}
         for(auto &f:fields){size_t a,b;float v;if(locate(text,f.key,a,b,v)&&v>=f.min&&v<=f.max&&(f.step!=1||std::floor(v)==v)){f.value=v;f.available=true;}}
         // The bridge, like the work-resolution controls, is D3D11 only.
