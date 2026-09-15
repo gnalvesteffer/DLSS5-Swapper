@@ -43,35 +43,23 @@ const gameMenu = require('./src/core/game-menu');
 const { CommunityClient, ADMIN_TOKEN_PATTERN } = require('./src/community-client');
 const { AdminVault } = require('./src/admin-vault');
 // DFC is deliberately never bundled: its licence allows a person to install
-// their official download but forbids us to redistribute it. A Linux user who
-// has extracted an official release in Downloads can still select it as their
-// local Feeder consumer. Only the three exact consumer files are accepted.
-function localDfcRoot() {
-  const downloads = path.join(os.homedir(), 'Downloads');
-  let entries = [];
-  try { entries = fs.readdirSync(downloads, { withFileTypes: true }); } catch { return null; }
+// their official download but forbids us to redistribute it. It is only used
+// after the person explicitly selects their own extracted release. The three
+// exact consumer files and the release checksum list are required.
+function validDfcRoot(root) {
+  if (typeof root !== 'string' || !path.isAbsolute(root)) return false;
   const required = ['deep-fried-chicken.addon64', 'deep-fried-chicken-nvngx.dll', 'deep-fried-chicken.cfg'];
-  const candidates = entries.filter(entry => entry.isDirectory() && /^Deep-Fried-Chicken-/i.test(entry.name))
-    .map(entry => path.join(downloads, entry.name))
-    .filter(root => {
-      if (!required.every(name => fs.existsSync(path.join(root, name)))) return false;
-      // The release ships a checksum list beside its binaries. Require it and
-      // validate the three files we consume: a folder merely named DFC must
-      // never be sufficient to load a third-party DLL into a game.
-      try {
-        const sums = fs.readFileSync(path.join(root, 'SHA256SUMS.txt'), 'utf8');
-        const expected = new Map([...sums.matchAll(/^([a-f0-9]{64})\\s+(.+)$/gmi)]
-          .map(([, hash, name]) => [name.trim(), hash.toLowerCase()]));
-        return required.every(name => {
-          const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex');
-          return expected.get(name) === hash;
-        });
-      } catch { return false; }
+  if (!required.every(name => fs.existsSync(path.join(root, name)))) return false;
+  // A folder merely named DFC must never be enough to load a third-party DLL.
+  try {
+    const sums = fs.readFileSync(path.join(root, 'SHA256SUMS.txt'), 'utf8');
+    const expected = new Map([...sums.matchAll(/^([a-f0-9]{64})\\s+(.+)$/gmi)]
+      .map(([, hash, name]) => [name.trim(), hash.toLowerCase()]));
+    return required.every(name => {
+      const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex');
+      return expected.get(name) === hash;
     });
-  candidates.sort((a, b) => {
-    try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch { return 0; }
-  });
-  return candidates[0] || null;
+  } catch { return false; }
 }
 let historyStore;
 const history = () => historyStore || (historyStore = new HistoryStore(path.join(app.getPath('userData'), 'history.jsonl')));
@@ -612,7 +600,8 @@ ipcMain.handle('settings', () => {
     hidden: [...(state.hidden || [])],
     autoScanDrives: state.autoScanDrives === true,
     groupGamesByStore: state.groupGamesByStore !== false,
-    closeToTray: state.closeToTray !== false
+    closeToTray: state.closeToTray !== false,
+    dfcRoot: validDfcRoot(state.dfcRoot) ? state.dfcRoot : null
   };
 });
 
@@ -1087,6 +1076,26 @@ ipcMain.handle('add-folder', async () => {
   );
   saveState(state);
   return res.filePaths[0];
+});
+
+ipcMain.handle('choose-dfc-folder', async () => {
+  const state = loadState();
+  const picked = await dialog.showOpenDialog(win, {
+    title: 'Select extracted Deep Fried Chicken release folder',
+    defaultPath: validDfcRoot(state.dfcRoot) ? state.dfcRoot : path.join(os.homedir(), 'Downloads'),
+    properties: ['openDirectory']
+  });
+  if (picked.canceled) return { ok: false, canceled: true };
+  const root = picked.filePaths[0];
+  if (!validDfcRoot(root)) return { ok: false, code: 'invalid-dfc-release' };
+  state.dfcRoot = root;
+  return saveState(state) ? { ok: true, root } : { ok: false, code: 'save-failed' };
+});
+
+ipcMain.handle('clear-dfc-folder', () => {
+  const state = loadState();
+  delete state.dfcRoot;
+  return saveState(state);
 });
 
 ipcMain.handle('remove-folder', (_event, dir) => {
@@ -1852,10 +1861,9 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi) =>
       antiCheatAcknowledged,
       emulator: target.emulator,
       source: p.source,
-      // This is a reference to the person's own official DFC extraction, not
-      // an app asset. It is only considered on Linux/Proton where the current
-      // RenoDX v4.7 consumer has failed on this machine.
-      dfcRoot: process.platform === 'linux' ? localDfcRoot() : null,
+      // This is an explicitly selected reference to the person's own official
+      // DFC extraction, not an app asset. There is deliberately no discovery.
+      dfcRoot: process.platform === 'linux' && validDfcRoot(loadState().dfcRoot) ? loadState().dfcRoot : null,
       optiRoot,
       companions,
       reshadeSetup: p.reshadeSetup,

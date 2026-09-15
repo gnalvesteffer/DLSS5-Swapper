@@ -60,6 +60,8 @@ contextBridge.exposeInMainWorld('lab', {
   acknowledgeDriver: (names) => ipcRenderer.invoke('acknowledge-driver', names),
   setTrayLabels: (labels) => ipcRenderer.invoke('set-tray-labels', labels),
   setAutoScanDrives: (enabled) => ipcRenderer.invoke('set-auto-scan-drives', enabled),
+  chooseDfcFolder: () => ipcRenderer.invoke('choose-dfc-folder'),
+  clearDfcFolder: () => ipcRenderer.invoke('clear-dfc-folder'),
   addFolder: () => ipcRenderer.invoke('add-folder'),
   removeFolder: (dir) => ipcRenderer.invoke('remove-folder', dir),
   excludeRoot: (dir) => ipcRenderer.invoke('exclude-root', dir),

@@ -449,6 +449,11 @@ async function renderSettings() {
         aria-checked="${info.autoScanDrives ? 'true' : 'false'}" aria-label="${t('setAutoScan')}">
         <span class="knob"></span>
       </button></div>
+    <div class="set-row"><div><div class="k">Deep Fried Chicken (DFC)</div>
+      <div class="v">${info.dfcRoot ? esc(info.dfcRoot) : 'Not selected — optional Linux/Proton Feeder consumer.'}</div>
+      <div class="v">Select the extracted official release folder. Its release checksums are verified.</div>
+      <button class="ghost sm" id="setDfcDiscord" type="button">DFC Discord</button></div>
+      <div class="settings-actions"><button class="ghost sm" id="setDfcFolder">Choose…</button>${info.dfcRoot ? '<button class="ghost sm" id="setClearDfc">Clear</button>' : ''}</div></div>
     <div class="set-row"><div><div class="k">${t('setRoots')}</div>${
         (info.roots || []).length
           ? `<div class="paths">${info.roots.map((f) => `
@@ -525,6 +530,14 @@ async function renderSettings() {
     await load();
     await renderSettings();
   };
+  $('setDfcDiscord').onclick = () => window.lab.openProject('dfcDiscord');
+  $('setDfcFolder').onclick = async () => {
+    const answer = await window.lab.chooseDfcFolder();
+    if (!answer.ok && !answer.canceled) log('Select the extracted DFC release folder containing SHA256SUMS.txt.');
+    await renderSettings();
+  };
+  const clearDfc = $('setClearDfc');
+  if (clearDfc) clearDfc.onclick = async () => { await window.lab.clearDfcFolder(); await renderSettings(); };
   $('setAddFolder').onclick = async () => { if (await window.lab.addFolder()) load(); };
   for (const b of $('settings').querySelectorAll('[data-unroot]')) {
     b.onclick = async () => {
