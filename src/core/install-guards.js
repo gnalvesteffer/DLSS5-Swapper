@@ -73,6 +73,24 @@ const driverNumber = row => {
   const [major, minor] = String(row.driver).split('.');
   return Number(major) * 100 + Number(minor);
 };
+// Under Proton, DXVK-NVAPI intentionally exposes a synthetic Windows driver
+// version (usually 999.99). The Feeder's D3D12 runtime still uses the real
+// host NVIDIA kernel driver, so read it directly rather than accepting the
+// compatibility-layer value. A missing procfs entry deliberately remains
+// inconclusive: this guard must not reject non-NVIDIA setups merely because
+// their driver cannot be identified here.
+function linuxNvidiaDriverVersion({ platform = process.platform, readFile = fs.readFileSync } = {}) {
+  if (platform !== 'linux') return null;
+  try {
+    const text = readFile('/proc/driver/nvidia/version', 'utf8');
+    const match = text.match(/Kernel Module\s+(\d+\.\d+(?:\.\d+)?)/i);
+    return match ? match[1] : null;
+  } catch { return null; }
+}
+function neuralDriverVersionSupported(version) {
+  if (!version) return true;
+  return driverNumber({ driver: version }) >= OPTI_DRIVER;
+}
 // Measured upstream by the Feeder author across three machines: with the
 // RenoDX DLSS 5 consumer (v4.6 and v4.7), every neural evaluate faults inside
 // NVIDIA's own NGX runtime on 616.64 and 616.86, while 616.56 completes.
@@ -111,4 +129,4 @@ function antiCheatPresent(gameDir) {
   }
   return false;
 }
-module.exports = { assertGameClosed, executableLocked, matchingProcesses, gpuInfo, gpuSupported, gpuModelSupported, driverSupported, driverNeuralFault, driverNames, antiCheatPresent };
+module.exports = { assertGameClosed, executableLocked, matchingProcesses, gpuInfo, gpuSupported, gpuModelSupported, driverSupported, driverNeuralFault, driverNames, linuxNvidiaDriverVersion, neuralDriverVersionSupported, antiCheatPresent };

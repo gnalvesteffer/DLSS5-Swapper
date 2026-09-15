@@ -1661,6 +1661,22 @@ ipcMain.handle('install', (event, dir, exePath, requestedRoute, requestedApi) =>
   if (process.platform === 'linux' && api === 'vulkan') {
     return { ok: false, code: 'errLinuxVulkanUnsupported', message: 'The Vulkan Feeder route needs a host Vulkan layer and is not supported on Linux yet. Select a DirectX renderer in the game.' };
   }
+  // DXVK-NVAPI reports a deliberately synthetic Windows driver (normally
+  // 999.99), but Feeder's private D3D12 device uses the host Linux driver.
+  // NVIDIA NGX itself refuses Neural Rendering below 616.56; without this
+  // early check the install succeeds and the first DLSS evaluation can crash
+  // the game instead. Keep an unknown driver permissive so unsupported
+  // hardware is not mistaken for a detected old NVIDIA driver.
+  if (process.platform === 'linux' && (route === 'native' || route === 'feeder') && guards.linuxNvidiaDriverVersion) {
+    const hostDriver = guards.linuxNvidiaDriverVersion();
+    if (hostDriver && !guards.neuralDriverVersionSupported(hostDriver)) {
+      return {
+        ok: false,
+        code: 'errLinuxNeuralDriver',
+        message: `DLSS 5 Neural Rendering requires Linux NVIDIA driver 616.56 or newer. Detected ${hostDriver}. Update the host driver, then install again.`
+      };
+    }
+  }
 
   const send = (e) => event.sender.send('job', e);
   await guards.assertGameClosed(dir, target.path);
