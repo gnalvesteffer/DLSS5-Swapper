@@ -53,7 +53,7 @@ function validDfcRoot(root) {
   // A folder merely named DFC must never be enough to load a third-party DLL.
   try {
     const sums = fs.readFileSync(path.join(root, 'SHA256SUMS.txt'), 'utf8');
-    const expected = new Map([...sums.matchAll(/^([a-f0-9]{64})\\s+(.+)$/gmi)]
+    const expected = new Map([...sums.matchAll(/^([a-f0-9]{64})\s+(.+)$/gmi)]
       .map(([, hash, name]) => [name.trim(), hash.toLowerCase()]));
     return required.every(name => {
       const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(root, name))).digest('hex');
