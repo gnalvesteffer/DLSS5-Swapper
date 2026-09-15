@@ -40,3 +40,16 @@ test('configured Proton tool is preferred for a Steam prefix', (t) => {
   fs.writeFileSync(path.join(path.dirname(prefix), 'config_info'), 'Proton 9.0');
   assert.equal(protonCandidates(root, prefix)[0], path.join(root, 'steamapps', 'common', 'Proton 9.0', 'proton'));
 });
+
+test('custom compatibilitytools.d Proton is selected for a Bazzite Steam prefix', (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dlss5-proton-custom-'));
+  t.after(() => fs.rmSync(home, { recursive: true, force: true }));
+  const root = path.join(home, '.local', 'share', 'Steam');
+  const prefix = path.join(root, 'steamapps', 'compatdata', '123', 'pfx');
+  const tool = path.join(root, 'compatibilitytools.d', 'GE-Proton10-20', 'proton');
+  fs.mkdirSync(path.dirname(tool), { recursive: true });
+  fs.mkdirSync(prefix, { recursive: true });
+  fs.writeFileSync(tool, '');
+  fs.writeFileSync(path.join(path.dirname(prefix), 'config_info'), 'GE-Proton10-20');
+  assert.equal(protonCandidates(root, prefix, home)[0], tool);
+});
